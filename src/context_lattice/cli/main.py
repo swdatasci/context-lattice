@@ -3,20 +3,20 @@ ContextLattice CLI: Query-time context optimization.
 
 Usage:
     context-lattice optimize --query "Fix the authentication bug"
-    context-lattice optimize --query "..." --budget 20000
+    context-lattice optimize --query "..." --project-root /path/to/project
+    context-lattice optimize --query "..." --sources semantic,file --no-cache
 """
 
 import typer
 from rich.console import Console
 from rich.table import Table
-from typing import Optional
-import numpy as np
-from sentence_transformers import SentenceTransformer
+from typing import Optional, List
+from pathlib import Path
+import yaml
 
 from ..core import (
     HierarchyLevel,
     HierarchyConfig,
-    ContextNode,
     BudgetCalculator,
     ContextAssembler,
 )
@@ -25,9 +25,25 @@ from ..retrieval import (
     PoolSelector,
     VectorRanker,
 )
+from ..sources import MultiSourceCollector
+from ..feedback import FeedbackTracker
 
 app = typer.Typer(help="ContextLattice: Query-time context optimization")
 console = Console()
+
+
+def load_config(config_path: Optional[Path] = None) -> dict:
+    """Load configuration from YAML file."""
+    if config_path is None:
+        # Default config location
+        config_path = Path(__file__).parent.parent.parent.parent / "config" / "default.yaml"
+
+    if config_path.exists():
+        with open(config_path) as f:
+            return yaml.safe_load(f)
+    else:
+        console.print(f"[yellow]Warning: Config file not found at {config_path}, using defaults[/yellow]")
+        return {}
 
 
 @app.command()
@@ -36,15 +52,33 @@ def optimize(
     budget: int = typer.Option(20000, "--budget", "-b", help="Total token budget"),
     conversation_tokens: int = typer.Option(0, "--conversation", help="Tokens in conversation"),
     tools_tokens: int = typer.Option(5000, "--tools", help="Tokens in tool definitions"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", "-p", help="Project root directory"),
+    current_file: Optional[str] = typer.Option(None, "--current-file", "-f", help="Currently open file"),
+    sources: Optional[str] = typer.Option(None, "--sources", "-s", help="Comma-separated sources (semantic,file)"),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Disable caching"),
+    track_feedback: bool = typer.Option(True, "--track-feedback", help="Enable feedback tracking"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed statistics"),
+    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
 ):
     """
-    Optimize context for a query.
+    Optimize context for a query using real sources.
 
     Example:
-        context-lattice optimize --query "Fix the auth bug in login.py" --budget 20000
+        context-lattice optimize --query "Fix the auth bug in login.py" \\
+            --project-root /path/to/project \\
+            --sources semantic,file
     """
     console.print(f"\n[bold]Query:[/bold] {query}\n")
+
+    # Load configuration
+    config = load_config(config_file)
+
+    # Default project root to current directory
+    if project_root is None:
+        project_root = Path.cwd()
+
+    # Parse sources
+    source_list = sources.split(',') if sources else None
 
     # Step 1: Classify intent
     classifier = IntentClassifier()
@@ -55,8 +89,8 @@ def optimize(
     )
 
     # Step 2: Calculate budget
-    config = HierarchyConfig()
-    budget_calc = BudgetCalculator(config)
+    hierarchy_config = HierarchyConfig(**config.get('hierarchy', {}))
+    budget_calc = BudgetCalculator(hierarchy_config)
     context_budget = budget_calc.calculate(
         conversation_tokens=conversation_tokens,
         tools_tokens=tools_tokens,
@@ -81,15 +115,33 @@ def optimize(
     console.print(budget_table)
     console.print()
 
-    # Step 3: Load sample candidates (for MVP demo)
-    # In production, this would fetch from semantic search, files, etc.
-    console.print("[yellow]Note: Using demo candidates (production will fetch from Qdrant, files, etc.)[/yellow]\n")
+    # Step 3: Collect context from sources
+    console.print("[cyan]Collecting context from sources...[/cyan]")
 
-    candidates = _create_demo_candidates()
+    collector = MultiSourceCollector(
+        semantic_config=config.get('sources', {}).get('semantic'),
+        file_config=config.get('sources', {}).get('file'),
+        cache_config=config.get('cache') if not no_cache else {'enabled': False},
+    )
 
-    # Step 4: Assign to pools
-    pool_selector = PoolSelector()
-    pools = pool_selector.assign_pools(candidates, query)
+    candidates = collector.collect(
+        query=query,
+        project_root=project_root,
+        current_file=current_file,
+        sources=source_list,
+        use_cache=not no_cache,
+    )
+
+    console.print(f"[green]✓ Collected {len(candidates)} candidates from sources[/green]\n")
+
+    # Step 4: Initialize feedback tracker and enrich nodes
+    if track_feedback:
+        tracker = FeedbackTracker(**config.get('feedback', {}))
+        candidates = tracker.enrich_nodes(candidates)
+
+    # Step 5: Assign to pools
+    pool_selector = PoolSelector(project_root=project_root)
+    pools = pool_selector.assign_pools(candidates, query, current_file)
 
     console.print("[bold]Pool Assignment:[/bold]")
     pool_table = Table(show_header=True)
@@ -109,15 +161,38 @@ def optimize(
     console.print(pool_table)
     console.print()
 
-    # Step 5: Rank within pools
-    console.print("[cyan]Embedding query...[/cyan]")
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    query_embedding = model.encode(query)
+    # Step 6: Rank within pools
+    console.print("[cyan]Ranking within pools...[/cyan]")
 
-    ranker = VectorRanker(config)
-    ranked_pools = ranker.rank_all_pools(pools, query_embedding)
+    # Embed query if any nodes need ranking
+    query_embedding = None
+    for pool in pools.values():
+        if pool:
+            # Check if any node needs embedding
+            needs_embedding = any(n.embedding is None for n in pool)
+            if needs_embedding:
+                from sentence_transformers import SentenceTransformer
+                model = SentenceTransformer('all-MiniLM-L6-v2')
+                query_embedding = model.encode(query)
+                # Embed nodes that don't have embeddings
+                for node in pool:
+                    if node.embedding is None:
+                        node.embedding = model.encode(node.content)
+                break
 
-    # Step 6: Select within budget
+    if query_embedding is None and any(pools.values()):
+        # Use a dummy model just to get query embedding
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        query_embedding = model.encode(query)
+
+    ranker = VectorRanker(hierarchy_config)
+    if query_embedding is not None:
+        ranked_pools = ranker.rank_all_pools(pools, query_embedding)
+    else:
+        ranked_pools = {level: [] for level in HierarchyLevel}
+
+    # Step 7: Select within budget
     selected = {}
     for level in HierarchyLevel:
         ranked = ranked_pools.get(level, [])
@@ -149,7 +224,7 @@ def optimize(
     console.print(selection_table)
     console.print()
 
-    # Step 7: Assemble context
+    # Step 8: Assemble context
     assembler = ContextAssembler()
     assembled = assembler.assemble(selected, context_budget)
 
@@ -158,58 +233,17 @@ def optimize(
 
     if verbose:
         console.print("[bold]Assembled Context Preview:[/bold]")
-        console.print("[dim]" + assembled.text[:500] + "...[/dim]\n")
+        preview_lines = assembled.text.split('\n')[:20]
+        console.print("[dim]" + '\n'.join(preview_lines) + "\n...[/dim]\n")
+
+        # Show feedback stats if enabled
+        if track_feedback:
+            console.print("[bold]Feedback Stats:[/bold]")
+            stats = tracker.get_efficiency_stats(days=7)
+            console.print(f"  Avg Efficiency (7d): {stats['avg_efficiency']:.1%}")
+            console.print(f"  Total Queries (7d): {stats['total_queries']}")
 
     return assembled
-
-
-def _create_demo_candidates() -> list:
-    """Create demo candidates for MVP testing."""
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-
-    candidates = []
-
-    # Structural
-    candidates.append(ContextNode(
-        id="struct_1",
-        content="User preference: Always use TypeScript strict mode. Prefer functional programming patterns.",
-        tokens=20,
-        level=HierarchyLevel.STRUCTURAL,
-        embedding=model.encode("User preference: Always use TypeScript strict mode"),
-        metadata={"type": "user_preference"},
-    ))
-
-    # Direct (mentioned file)
-    candidates.append(ContextNode(
-        id="direct_1",
-        content="function login(username, password) { /* auth logic */ }",
-        tokens=50,
-        level=HierarchyLevel.DIRECT,
-        embedding=model.encode("function login(username, password)"),
-        metadata={"file_path": "src/auth/login.py", "entity_name": "login"},
-    ))
-
-    # Implied (same module)
-    candidates.append(ContextNode(
-        id="implied_1",
-        content="function validatePassword(password) { /* validation */ }",
-        tokens=30,
-        level=HierarchyLevel.IMPLIED,
-        embedding=model.encode("function validatePassword(password)"),
-        metadata={"file_path": "src/auth/validation.py", "entity_name": "validatePassword"},
-    ))
-
-    # Background (architecture)
-    candidates.append(ContextNode(
-        id="background_1",
-        content="# Authentication Architecture\n\nWe use JWT tokens with 15-minute expiry.",
-        tokens=40,
-        level=HierarchyLevel.BACKGROUND,
-        embedding=model.encode("Authentication Architecture JWT tokens"),
-        metadata={"file_path": "docs/ARCHITECTURE.md", "type": "documentation"},
-    ))
-
-    return candidates
 
 
 @app.command()
@@ -218,11 +252,86 @@ def info():
     console.print("[bold]ContextLattice v0.1.0[/bold]\n")
     console.print("Query-time context optimization for agentic LLM systems\n")
 
+    # Load config
+    config = load_config()
+
     console.print("[bold]Hierarchy Levels:[/bold]")
     for level in HierarchyLevel:
         console.print(f"  {level.name}: {level.description}")
 
     console.print()
+
+    # Show source configuration
+    console.print("[bold]Configured Sources:[/bold]")
+    sources_config = config.get('sources', {})
+    for source_name, source_config in sources_config.items():
+        enabled = source_config.get('enabled', False)
+        status = "✓ Enabled" if enabled else "✗ Disabled"
+        console.print(f"  {source_name}: {status}")
+
+    console.print()
+
+    # Show cache configuration
+    cache_config = config.get('cache', {})
+    cache_enabled = cache_config.get('enabled', False)
+    console.print(f"[bold]Cache:[/bold] {'✓ Enabled' if cache_enabled else '✗ Disabled'}")
+    if cache_enabled:
+        console.print(f"  Redis: {cache_config.get('redis_url')}")
+        console.print(f"  TTL: {cache_config.get('ttl')}s")
+
+    console.print()
+
+
+@app.command()
+def test_sources(
+    project_root: Optional[Path] = typer.Option(None, "--project-root", "-p", help="Project root directory"),
+    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
+):
+    """Test source connections."""
+    console.print("[bold]Testing source connections...[/bold]\n")
+
+    config = load_config(config_file)
+
+    # Test semantic source
+    console.print("[cyan]Testing Semantic Source (Qdrant)...[/cyan]")
+    try:
+        from ..sources import SemanticSource
+        semantic_config = config.get('sources', {}).get('semantic', {})
+        semantic = SemanticSource(
+            qdrant_url=semantic_config.get('qdrant_url', 'http://10.32.3.27:6333'),
+            collection=semantic_config.get('collection', 'caelum_knowledge'),
+        )
+        if semantic.test_connection():
+            console.print("[green]✓ Semantic source connected[/green]\n")
+        else:
+            console.print("[red]✗ Semantic source connection failed[/red]\n")
+    except Exception as e:
+        console.print(f"[red]✗ Semantic source error: {e}[/red]\n")
+
+    # Test file source
+    console.print("[cyan]Testing File Source...[/cyan]")
+    try:
+        from ..sources import FileSource
+        file_source = FileSource()
+        project_root = project_root or Path.cwd()
+        test_files = list(project_root.glob("*.py"))[:3]
+        console.print(f"[green]✓ File source ready ({len(test_files)} sample files found)[/green]\n")
+    except Exception as e:
+        console.print(f"[red]✗ File source error: {e}[/red]\n")
+
+    # Test Redis cache
+    console.print("[cyan]Testing Redis Cache...[/cyan]")
+    try:
+        cache_config = config.get('cache', {})
+        if cache_config.get('enabled'):
+            import redis
+            redis_client = redis.from_url(cache_config.get('redis_url'), decode_responses=True)
+            redis_client.ping()
+            console.print("[green]✓ Redis cache connected[/green]\n")
+        else:
+            console.print("[yellow]○ Redis cache disabled in config[/yellow]\n")
+    except Exception as e:
+        console.print(f"[red]✗ Redis cache error: {e}[/red]\n")
 
 
 if __name__ == "__main__":
