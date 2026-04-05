@@ -231,24 +231,22 @@ candidates = collector.collect(...)  # Returns file results only
 
 ---
 
-## Next Steps (Phase 3 - Optional)
+## Next Steps (Phase 3 - Remaining)
 
-**Polish & Production Hardening:**
-1. Todo source integration (TaskList tool)
-2. Conversation source (`.claude/history.jsonl`)
-3. Pre-query hook for Claude Code
-4. Cost-aware escalation (Level 0-3)
-5. Performance benchmarks
-6. Documentation polish
-7. Production deployment guide
+**Remaining Items:**
+1. Cost-aware escalation (Level 0-3)
+2. Performance benchmarks (simple timing, not Prometheus)
+3. Documentation polish
 
-**Or: Ship Phase 2 as v0.2.0**
+**Completed in Phase 3:**
+- ✅ Pre-query hook for Claude Code (2026-04-04)
 
-Phase 2 is production-ready for real use:
+**Production Ready:**
 - ✅ Real source integration
 - ✅ Feedback learning
 - ✅ Robust error handling
-- ✅ Comprehensive tests
+- ✅ Comprehensive tests (32 passing)
+- ✅ Automatic context injection via hooks
 
 ---
 

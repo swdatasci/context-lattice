@@ -40,9 +40,9 @@ ContextLattice implements a **hybrid hierarchy + vector approach**:
 - ✅ **Pool Selection**: Hierarchy-based filtering before semantic search
 - ✅ **Vector Ranking**: Similarity + recency + usage within pools
 - ✅ **Context Assembly**: Clear, structured output with level headers
-- 🚧 **Feedback Learning**: Track what context was actually used (Phase 2)
-- 🚧 **Source Integration**: Semantic search, files, todos, conversations (Phase 2)
-- 🚧 **Pre/Post Hooks**: Automatic context injection for Claude Code (Phase 2)
+- ✅ **Feedback Learning**: Track what context was actually used
+- ✅ **Source Integration**: Semantic search (Qdrant), files (local)
+- ✅ **Pre-Query Hook**: Automatic context injection for Claude Code
 
 ## Installation
 
@@ -73,6 +73,36 @@ context-lattice optimize --query "..." --verbose
 
 # Show system info
 context-lattice info
+```
+
+### Claude Code Hook (Automatic Context Injection)
+
+Install the pre-query hook for automatic context optimization:
+
+```bash
+# Install globally (all projects)
+context-lattice install-hook --scope global
+
+# Install for current project only
+context-lattice install-hook --scope project
+
+# With custom budget (default: 8000 tokens)
+context-lattice install-hook --budget 10000
+
+# Uninstall
+context-lattice uninstall-hook --scope global
+```
+
+Once installed, every query you submit to Claude Code will automatically
+receive optimized context based on the ContextLattice hierarchy.
+
+Manual hook usage:
+```bash
+# Direct optimization (for testing)
+context-lattice hook --query "Fix the auth bug"
+
+# Stdin mode (how Claude Code uses it)
+echo '{"user_prompt": "Fix bug", "cwd": "/project"}' | context-lattice hook --stdin
 ```
 
 ### Python API
@@ -183,19 +213,17 @@ ruff check src/ tests/
 - [x] CLI
 - [x] Unit tests
 
-### Phase 2: Integration (Next)
-- [ ] Source integrations (semantic search, files, todos)
-- [ ] Feedback tracking (usage detection)
-- [ ] Pre-query hook for Claude Code
-- [ ] Integration tests
-- [ ] Efficiency metrics
+### Phase 2: Integration ✅ (DONE)
+- [x] Source integrations (semantic search, files)
+- [x] Feedback tracking (usage detection)
+- [x] Integration tests (7 tests)
+- [x] Efficiency metrics
 
-### Phase 3: Learning & Polish
-- [ ] Weight updates from feedback
-- [ ] User correction storage
-- [ ] Summarization (Ollama)
-- [ ] MCP server wrapper
+### Phase 3: Hooks & Polish (IN PROGRESS)
+- [x] Pre-query hook for Claude Code
+- [ ] Cost-aware escalation
 - [ ] Performance benchmarks
+- [ ] Documentation polish
 
 ## Configuration
 
@@ -242,6 +270,7 @@ Roderick Ford - [swdatasci](https://github.com/swdatasci)
 
 ---
 
-**Status**: Phase 1 Complete (MVP)
-**Version**: 0.1.0
+**Status**: Phase 3 In Progress (Pre-Query Hook Complete)
+**Version**: 0.2.0
+**Tests**: 32 passing
 **Created**: 2026-04-04

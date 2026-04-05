@@ -27,6 +27,7 @@ from ..retrieval import (
 )
 from ..sources import MultiSourceCollector
 from ..feedback import FeedbackTracker
+from ..hooks import PreQueryHook
 
 app = typer.Typer(help="ContextLattice: Query-time context optimization")
 console = Console()
@@ -280,6 +281,167 @@ def info():
         console.print(f"  TTL: {cache_config.get('ttl')}s")
 
     console.print()
+
+
+@app.command()
+def hook(
+    query: Optional[str] = typer.Option(None, "--query", "-q", help="Query to optimize (if not reading from stdin)"),
+    project_root: Optional[Path] = typer.Option(None, "--project-root", "-p", help="Project root directory"),
+    budget: int = typer.Option(8000, "--budget", "-b", help="Token budget for injected context"),
+    sources: Optional[str] = typer.Option("semantic,file", "--sources", "-s", help="Comma-separated sources"),
+    config_file: Optional[Path] = typer.Option(None, "--config", help="Config file path"),
+    stdin_mode: bool = typer.Option(False, "--stdin", help="Read JSON input from stdin (Claude Code hook mode)"),
+):
+    """
+    Run as Claude Code hook or optimize a single query.
+
+    Hook mode (--stdin): Reads JSON from stdin, outputs context to stdout.
+    Direct mode (--query): Optimizes the given query and outputs context.
+
+    Example hook configuration in ~/.claude/settings.json:
+        {
+          "hooks": {
+            "UserPromptSubmit": [{
+              "matcher": ".*",
+              "hooks": [{
+                "type": "command",
+                "command": "context-lattice hook --stdin",
+                "timeout": 30
+              }]
+            }]
+          }
+        }
+
+    Example direct usage:
+        context-lattice hook --query "Fix the authentication bug"
+    """
+    import sys
+
+    source_list = sources.split(',') if sources else ['semantic', 'file']
+
+    pre_hook = PreQueryHook(
+        config_path=config_file,
+        project_root=project_root,
+        budget=budget,
+        sources=source_list,
+    )
+
+    if stdin_mode:
+        # Claude Code hook mode - read JSON from stdin
+        exit_code = pre_hook.run_from_stdin()
+        raise typer.Exit(code=exit_code)
+
+    elif query:
+        # Direct mode - optimize given query
+        context = pre_hook.optimize(query=query, cwd=str(project_root) if project_root else None)
+        if context:
+            print(context)
+        raise typer.Exit(code=0)
+
+    else:
+        console.print("[red]Error: Either --query or --stdin is required[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def install_hook(
+    scope: str = typer.Option("project", "--scope", help="Install scope: 'global' (~/.claude) or 'project' (.claude)"),
+    budget: int = typer.Option(8000, "--budget", "-b", help="Token budget for injected context"),
+    sources: str = typer.Option("semantic,file", "--sources", "-s", help="Sources to use"),
+):
+    """
+    Install the pre-query hook for Claude Code.
+
+    This adds the ContextLattice hook to your Claude Code settings,
+    enabling automatic context optimization for every query.
+
+    Scopes:
+        - project: Installs to .claude/settings.json (current project only)
+        - global: Installs to ~/.claude/settings.json (all projects)
+
+    Example:
+        context-lattice install-hook --scope global
+        context-lattice install-hook --scope project --budget 10000
+    """
+    import json
+
+    if scope == "global":
+        settings_path = Path.home() / ".claude" / "settings.json"
+    else:
+        settings_path = Path.cwd() / ".claude" / "settings.json"
+
+    # Ensure directory exists
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing settings
+    if settings_path.exists():
+        with open(settings_path) as f:
+            settings = json.load(f)
+    else:
+        settings = {}
+
+    # Add hook configuration
+    if "hooks" not in settings:
+        settings["hooks"] = {}
+
+    hook_command = f"context-lattice hook --stdin --budget {budget} --sources {sources}"
+
+    settings["hooks"]["UserPromptSubmit"] = [{
+        "matcher": ".*",
+        "hooks": [{
+            "type": "command",
+            "command": hook_command,
+            "timeout": 30
+        }]
+    }]
+
+    # Write updated settings
+    with open(settings_path, 'w') as f:
+        json.dump(settings, f, indent=2)
+
+    console.print(f"[green]✓ Hook installed to {settings_path}[/green]")
+    console.print(f"\n[bold]Configuration:[/bold]")
+    console.print(f"  Command: {hook_command}")
+    console.print(f"  Budget: {budget} tokens")
+    console.print(f"  Sources: {sources}")
+    console.print(f"\n[dim]Restart Claude Code to activate the hook.[/dim]")
+
+
+@app.command()
+def uninstall_hook(
+    scope: str = typer.Option("project", "--scope", help="Uninstall scope: 'global' or 'project'"),
+):
+    """
+    Remove the pre-query hook from Claude Code settings.
+
+    Example:
+        context-lattice uninstall-hook --scope global
+    """
+    import json
+
+    if scope == "global":
+        settings_path = Path.home() / ".claude" / "settings.json"
+    else:
+        settings_path = Path.cwd() / ".claude" / "settings.json"
+
+    if not settings_path.exists():
+        console.print(f"[yellow]No settings file found at {settings_path}[/yellow]")
+        return
+
+    with open(settings_path) as f:
+        settings = json.load(f)
+
+    if "hooks" in settings and "UserPromptSubmit" in settings["hooks"]:
+        del settings["hooks"]["UserPromptSubmit"]
+        if not settings["hooks"]:
+            del settings["hooks"]
+
+        with open(settings_path, 'w') as f:
+            json.dump(settings, f, indent=2)
+
+        console.print(f"[green]✓ Hook removed from {settings_path}[/green]")
+    else:
+        console.print(f"[yellow]No UserPromptSubmit hook found in {settings_path}[/yellow]")
 
 
 @app.command()
