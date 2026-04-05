@@ -1,0 +1,50 @@
+# ContextLattice Default Configuration
+
+sources:
+  semantic:
+    enabled: true
+    qdrant_url: "http://10.32.3.27:6333"
+    collection: "caelum_knowledge"
+    limit: 10
+    timeout: 5.0
+
+  files:
+    enabled: true
+    max_files: 20
+    file_types: [".py", ".ts", ".tsx", ".js", ".jsx", ".md", ".yaml", ".yml"]
+    exclude_dirs: [".git", "node_modules", ".venv", "dist", "build", "__pycache__"]
+
+  todos:
+    enabled: false  # Optional - requires TaskList tool
+
+  conversations:
+    enabled: true
+    max_turns: 5
+    history_file: "~/.claude/history.jsonl"
+
+cache:
+  enabled: true
+  redis_url: "redis://10.32.3.27:6379"
+  ttl: 3600  # 1 hour
+  key_prefix: "context-lattice:"
+
+feedback:
+  enabled: true
+  redis_url: "redis://10.32.3.27:6379"
+  usage_ttl: 2592000  # 30 days
+  key_prefix: "context-lattice:feedback:"
+
+hierarchy:
+  structural_pct: 0.15
+  direct_pct: 0.45
+  implied_pct: 0.30
+  background_pct: 0.10
+
+  implied_threshold: 0.6
+  background_threshold: 0.4
+
+optimization:
+  cache_ttl: 3600
+  source_timeout: 2.0
+  max_retries: 3
+  circuit_breaker_threshold: 5
