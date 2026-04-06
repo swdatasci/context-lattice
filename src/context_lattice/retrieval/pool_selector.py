@@ -86,6 +86,26 @@ class PoolSelector:
             # Otherwise, BACKGROUND level
             pools[HierarchyLevel.BACKGROUND].append(node)
 
+        # Fallback: If DIRECT pool is empty, promote some BACKGROUND nodes
+        # This handles queries without explicit file mentions
+        if not pools[HierarchyLevel.DIRECT] and pools[HierarchyLevel.BACKGROUND]:
+            # Promote README files (usually relevant for "what is" queries)
+            readme_nodes = [n for n in pools[HierarchyLevel.BACKGROUND]
+                          if 'readme' in str(n.metadata.get('file_path', '')).lower()]
+            for node in readme_nodes[:2]:  # Promote up to 2 README files
+                pools[HierarchyLevel.BACKGROUND].remove(node)
+                pools[HierarchyLevel.DIRECT].append(node)
+
+            # If still empty, promote top-level Python files (likely main modules)
+            if not pools[HierarchyLevel.DIRECT]:
+                main_files = [n for n in pools[HierarchyLevel.BACKGROUND]
+                            if n.metadata.get('file_path')]
+                # Sort by directory depth (prefer top-level files)
+                main_files.sort(key=lambda n: str(n.metadata.get('file_path', '')).count('/'))
+                for node in main_files[:5]:  # Promote up to 5 top-level files
+                    pools[HierarchyLevel.BACKGROUND].remove(node)
+                    pools[HierarchyLevel.DIRECT].append(node)
+
         return pools
 
     def _is_structural(self, node: ContextNode) -> bool:
@@ -133,6 +153,7 @@ class PoolSelector:
         - Entities mentioned in query (functions, classes)
         - Current/focused file
         - Recent conversation turns
+        - Files matching query keywords (fuzzy matching)
         """
         # Check if current file
         if current_file:
@@ -153,6 +174,25 @@ class PoolSelector:
         if entity_name := node.metadata.get('entity_name'):
             if entity_name in mentioned_entities:
                 return True
+
+        # Keyword-based matching (fuzzy)
+        # Extract keywords from query and check against file path
+        if file_path := node.metadata.get('file_path'):
+            file_path_lower = str(file_path).lower()
+            query_lower = query.lower()
+
+            # Extract important keywords from query (nouns, verbs)
+            # Simple heuristic: words >2 chars that aren't common words
+            common_words = {'what', 'how', 'where', 'when', 'does', 'will', 'should',
+                          'the', 'this', 'that', 'with', 'from', 'for', 'and', 'are', 'was'}
+            keywords = [w.strip('.,?!') for w in query_lower.split()
+                       if len(w) > 2 and w not in common_words]
+
+            # Check if filename contains any keyword
+            for keyword in keywords:
+                if keyword in file_path_lower:
+                    # Boost relevance: if query is about "API", include files with "api" in name
+                    return True
 
         # Check if recent conversation
         if node.metadata.get('type') == 'conversation':
