@@ -1,0 +1,38 @@
+[
+  {
+    "query": "Fix the authentication bug in login.py",
+    "intent": "debugging",
+    "expected_files": ["login.py", "auth.py", "tests/test_auth.py"],
+    "description": "Specific file debugging task"
+  },
+  {
+    "query": "How does the semantic search work?",
+    "intent": "research",
+    "expected_files": ["semantic_source.py", "vector_ranker.py", "README.md"],
+    "description": "Code understanding query"
+  },
+  {
+    "query": "Implement rate limiting for the API",
+    "intent": "coding",
+    "expected_files": ["api.py", "middleware.py"],
+    "description": "Feature implementation task"
+  },
+  {
+    "query": "Refactor the pool selector to use async",
+    "intent": "refactoring",
+    "expected_files": ["pool_selector.py", "retrieval/__init__.py"],
+    "description": "Code refactoring task"
+  },
+  {
+    "query": "What's the overall architecture of this project?",
+    "intent": "research",
+    "expected_files": ["README.md", "CLAUDE.md"],
+    "description": "High-level architecture query"
+  },
+  {
+    "query": "Add unit tests for the VectorRanker class",
+    "intent": "coding",
+    "expected_files": ["vector_ranker.py", "tests/test_vector_ranker.py"],
+    "description": "Test writing task"
+  }
+]

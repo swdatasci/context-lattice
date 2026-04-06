@@ -1,0 +1,49 @@
+{
+  "timestamp": "2026-04-05T20:28:01.058381",
+  "total_queries": 3,
+  "aggregate_metrics": {
+    "avg_token_reduction_pct": 95.62763337076323,
+    "median_token_reduction_pct": 99.18074570346636,
+    "avg_optimization_latency_ms": 1930.777947107951,
+    "p95_optimization_latency_ms": 2137.0270252227783,
+    "avg_file_coverage_pct": 22.222222222222218
+  },
+  "results": [
+    {
+      "query": "Fix the authentication bug in login.py",
+      "timestamp": "2026-04-05T20:27:41.298972",
+      "raw_context_tokens": 27464,
+      "optimized_context_tokens": 225,
+      "token_reduction_pct": 99.18074570346636,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 2137.0270252227783,
+      "included_expected_files": 0,
+      "total_expected_files": 3,
+      "file_coverage_pct": 0.0
+    },
+    {
+      "query": "How does the semantic search work?",
+      "timestamp": "2026-04-05T20:27:46.915076",
+      "raw_context_tokens": 34998,
+      "optimized_context_tokens": 4304,
+      "token_reduction_pct": 87.70215440882336,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 1822.9022026062012,
+      "included_expected_files": 2,
+      "total_expected_files": 3,
+      "file_coverage_pct": 66.66666666666666
+    },
+    {
+      "query": "Implement rate limiting for the API",
+      "timestamp": "2026-04-05T20:27:52.195970",
+      "raw_context_tokens": 29532,
+      "optimized_context_tokens": 0,
+      "token_reduction_pct": 100.0,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 1832.404613494873,
+      "included_expected_files": 0,
+      "total_expected_files": 2,
+      "file_coverage_pct": 0.0
+    }
+  ]
+}
