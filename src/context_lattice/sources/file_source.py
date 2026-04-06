@@ -10,9 +10,6 @@ from pathlib import Path
 from datetime import datetime
 import re
 
-from sentence_transformers import SentenceTransformer
-import numpy as np
-
 from ..core.node import ContextNode
 from ..core.hierarchy import HierarchyLevel
 
@@ -28,7 +25,6 @@ class FileSource:
 
     def __init__(
         self,
-        model_name: str = "all-MiniLM-L6-v2",
         file_types: Optional[List[str]] = None,
         exclude_dirs: Optional[List[str]] = None,
     ):
@@ -36,12 +32,12 @@ class FileSource:
         Initialize file source.
 
         Args:
-            model_name: Sentence transformer model for embeddings
             file_types: File extensions to include (default: [".py", ".ts", ".md", ".yaml"])
             exclude_dirs: Directories to exclude (default: [".git", "node_modules", ".venv"])
-        """
-        self.model = SentenceTransformer(model_name)
 
+        Note: Embeddings are NOT generated here. They are lazy-loaded by VectorRanker
+        only for nodes that need ranking. This makes FileSource fast (<100ms).
+        """
         self.file_types = file_types or [".py", ".ts", ".tsx", ".js", ".jsx", ".md", ".yaml", ".yml"]
         self.exclude_dirs = exclude_dirs or [".git", "node_modules", ".venv", "dist", "build", "__pycache__"]
 
@@ -268,9 +264,6 @@ class FileSource:
             node_id = f"file_{file_path.stem}_{entity_name}"
             tokens = len(entity_content) // 4 + 1
 
-            # Embed entity
-            embedding = self.model.encode(entity_content)
-
             metadata = {
                 "file_path": str(file_path),
                 "entity_name": entity_name,
@@ -283,7 +276,7 @@ class FileSource:
                 content=entity_content,
                 tokens=tokens,
                 level=level,
-                embedding=embedding,
+                embedding=None,  # Lazy evaluation - embed only if needed for ranking
                 metadata=metadata,
                 timestamp=datetime.fromtimestamp(file_path.stat().st_mtime),
             ))
@@ -328,9 +321,6 @@ class FileSource:
         node_id = f"file_{file_path.stem}_full"
         tokens = len(content) // 4 + 1
 
-        # Embed file
-        embedding = self.model.encode(content)
-
         metadata = {
             "file_path": str(file_path),
             "source": "file",
@@ -342,7 +332,7 @@ class FileSource:
             content=content,
             tokens=tokens,
             level=level,
-            embedding=embedding,
+            embedding=None,  # Lazy evaluation - embed only if needed for ranking
             metadata=metadata,
             timestamp=datetime.fromtimestamp(file_path.stat().st_mtime),
         )

@@ -37,7 +37,14 @@ class VectorRanker:
 
     Uses cached embeddings (optimization level 1) for efficiency.
     Combines semantic similarity with within-level weights.
+
+    Lazy embedding: Only generates embeddings for nodes that need ranking.
+    Model is cached at class level and reused across instances.
     """
+
+    # Class-level model cache (loaded once, shared across all instances)
+    _model_cache = None
+    _model_name = "all-MiniLM-L6-v2"
 
     def __init__(self, config: Optional[HierarchyConfig] = None):
         """
@@ -47,6 +54,42 @@ class VectorRanker:
             config: Hierarchy configuration
         """
         self.config = config or HierarchyConfig()
+
+    @classmethod
+    def _get_model(cls):
+        """Get cached embedding model (lazy initialization)."""
+        if cls._model_cache is None:
+            from sentence_transformers import SentenceTransformer
+            cls._model_cache = SentenceTransformer(cls._model_name)
+        return cls._model_cache
+
+    def _ensure_embeddings(self, nodes: List[ContextNode]) -> None:
+        """
+        Ensure all nodes have embeddings (lazy generation).
+
+        Only generates embeddings for nodes that don't have them yet.
+        This makes FileSource fast (no embedding) and VectorRanker handles
+        embedding only for nodes that actually need ranking.
+
+        Args:
+            nodes: List of nodes to ensure embeddings for
+        """
+        # Find nodes without embeddings
+        nodes_to_embed = [node for node in nodes if node.embedding is None]
+
+        if not nodes_to_embed:
+            return  # All nodes already have embeddings
+
+        # Get model (cached)
+        model = self._get_model()
+
+        # Batch embed all nodes (more efficient than one-by-one)
+        contents = [node.content for node in nodes_to_embed]
+        embeddings = model.encode(contents)
+
+        # Assign embeddings back to nodes
+        for node, embedding in zip(nodes_to_embed, embeddings):
+            node.embedding = embedding
 
     def rank_pool(
         self,
@@ -70,6 +113,9 @@ class VectorRanker:
         if not pool:
             return []
 
+        # Ensure all nodes have embeddings (lazy generation)
+        self._ensure_embeddings(pool)
+
         # Apply threshold for IMPLIED and BACKGROUND levels
         if similarity_threshold is None:
             if level == HierarchyLevel.IMPLIED:
@@ -81,7 +127,7 @@ class VectorRanker:
 
         ranked = []
         for node in pool:
-            # Skip nodes without embeddings
+            # Skip nodes without embeddings (shouldn't happen after _ensure_embeddings)
             if node.embedding is None:
                 continue
 
