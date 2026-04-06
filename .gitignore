@@ -52,6 +52,16 @@ config/local.yaml
 *.log
 .cache/
 
+# Fine-tuning artifacts (models stored on Hugging Face Hub)
+finetune/*/models/
+finetune/*/data/
+finetune/*/*/models/
+finetune/*/*/data/
+checkpoints/
+
+# Lock files
+uv.lock
+
 # Sentence-transformers cache
 .cache/
 sentence-transformers/

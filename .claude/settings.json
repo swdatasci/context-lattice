@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "context-lattice hook --stdin --budget 8000 --sources semantic,file",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
