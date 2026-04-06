@@ -356,7 +356,7 @@ class FileSource:
                 mentions.add(common.lower())
                 # Add with common extensions
                 mentions.add(f"{common}.md")
-                mentions.add(f"{common.txt}")
+                mentions.add(f"{common}.txt")
 
         # Pattern 3: File-like words (anything ending in Source, Handler, Manager, etc.)
         code_pattern = r'\b(\w+(?:Source|Handler|Manager|Service|Controller|Model|View|Component|Utility|Helper))\b'
