@@ -67,8 +67,9 @@ class HierarchyConfig:
 
     # Relevance thresholds for IMPLIED and BACKGROUND levels
     # STRUCTURAL and DIRECT don't use thresholds (rule-based inclusion)
-    implied_threshold: float = 0.6   # Cosine similarity threshold
-    background_threshold: float = 0.4
+    # Lowered from 0.6/0.4 to reduce over-aggressive filtering
+    implied_threshold: float = 0.3   # Cosine similarity threshold
+    background_threshold: float = 0.2
 
     # Intent-specific pool weights (multipliers applied to budget allocation)
     intent_weights: Dict[str, Dict[HierarchyLevel, float]] = None
@@ -91,9 +92,9 @@ class HierarchyConfig:
                 },
                 "CODING": {
                     HierarchyLevel.STRUCTURAL: 1.0,
-                    HierarchyLevel.DIRECT: 1.2,
-                    HierarchyLevel.IMPLIED: 1.1,
-                    HierarchyLevel.BACKGROUND: 0.8,
+                    HierarchyLevel.DIRECT: 1.5,      # Boost: need more budget for files
+                    HierarchyLevel.IMPLIED: 1.2,     # Boost: related code important
+                    HierarchyLevel.BACKGROUND: 0.7,  # Reduce: docs less critical
                 },
                 "REFACTORING": {
                     HierarchyLevel.STRUCTURAL: 1.0,

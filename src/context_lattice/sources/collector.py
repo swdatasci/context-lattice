@@ -55,7 +55,7 @@ class MultiSourceCollector:
         semantic_config = semantic_config or {}
         file_config = file_config or {}
 
-        self.semantic_enabled = semantic_config.get('enabled', True)
+        self.semantic_enabled = semantic_config.get('enabled', False)  # Default False to avoid Qdrant hangs
         self.file_enabled = file_config.get('enabled', True)
 
         if self.semantic_enabled:

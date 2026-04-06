@@ -341,10 +341,26 @@ class FileSource:
         """Extract file names mentioned in query."""
         mentions = set()
 
-        # Pattern: filename.ext
+        # Pattern 1: Full filename with extension (login.py, README.md)
         file_pattern = r'\b([\w/-]+\.(py|js|ts|tsx|jsx|md|yaml|yml|json|txt))\b'
         for match in re.finditer(file_pattern, query, re.IGNORECASE):
             mentions.add(match.group(1))
             mentions.add(Path(match.group(1)).name)  # Also add just filename
+
+        # Pattern 2: Common file names without extension (README, LICENSE)
+        common_files = ['README', 'LICENSE', 'CHANGELOG', 'CONTRIBUTING', 'Makefile', 'Dockerfile']
+        query_upper = query.upper()
+        for common in common_files:
+            if common in query_upper:
+                mentions.add(common)
+                mentions.add(common.lower())
+                # Add with common extensions
+                mentions.add(f"{common}.md")
+                mentions.add(f"{common.txt}")
+
+        # Pattern 3: File-like words (anything ending in Source, Handler, Manager, etc.)
+        code_pattern = r'\b(\w+(?:Source|Handler|Manager|Service|Controller|Model|View|Component|Utility|Helper))\b'
+        for match in re.finditer(code_pattern, query, re.IGNORECASE):
+            mentions.add(match.group(1))
 
         return mentions

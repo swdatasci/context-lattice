@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-04-05T21:11:00.873291",
+  "total_queries": 6,
+  "aggregate_metrics": {
+    "avg_token_reduction_pct": 98.60242313268928,
+    "median_token_reduction_pct": 99.72857017774275,
+    "avg_optimization_latency_ms": 2932.2639306386313,
+    "p95_optimization_latency_ms": 3706.3984870910645,
+    "avg_file_coverage_pct": 19.444444444444443
+  },
+  "results": [
+    {
+      "query": "Fix the authentication bug in login.py",
+      "timestamp": "2026-04-05T21:10:43.024752",
+      "raw_context_tokens": 28758,
+      "optimized_context_tokens": 225,
+      "token_reduction_pct": 99.21760901314417,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 3706.3984870910645,
+      "included_expected_files": 0,
+      "total_expected_files": 3,
+      "file_coverage_pct": 0.0
+    },
+    {
+      "query": "How does the semantic search work?",
+      "timestamp": "2026-04-05T21:10:46.619343",
+      "raw_context_tokens": 36472,
+      "optimized_context_tokens": 2575,
+      "token_reduction_pct": 92.93978942750604,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 2758.4667205810547,
+      "included_expected_files": 2,
+      "total_expected_files": 3,
+      "file_coverage_pct": 66.66666666666666
+    },
+    {
+      "query": "Implement rate limiting for the API",
+      "timestamp": "2026-04-05T21:10:50.018386",
+      "raw_context_tokens": 33256,
+      "optimized_context_tokens": 0,
+      "token_reduction_pct": 100.0,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 2627.9044151306152,
+      "included_expected_files": 0,
+      "total_expected_files": 2,
+      "file_coverage_pct": 0.0
+    },
+    {
+      "query": "Refactor the pool selector to use async",
+      "timestamp": "2026-04-05T21:10:53.627241",
+      "raw_context_tokens": 36218,
+      "optimized_context_tokens": 0,
+      "token_reduction_pct": 100.0,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 2824.460029602051,
+      "included_expected_files": 0,
+      "total_expected_files": 2,
+      "file_coverage_pct": 0.0
+    },
+    {
+      "query": "What's the overall architecture of this project?",
+      "timestamp": "2026-04-05T21:10:57.215480",
+      "raw_context_tokens": 34338,
+      "optimized_context_tokens": 0,
+      "token_reduction_pct": 100.0,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 2777.226209640503,
+      "included_expected_files": 0,
+      "total_expected_files": 2,
+      "file_coverage_pct": 0.0
+    },
+    {
+      "query": "Add unit tests for the VectorRanker class",
+      "timestamp": "2026-04-05T21:11:00.873262",
+      "raw_context_tokens": 34263,
+      "optimized_context_tokens": 186,
+      "token_reduction_pct": 99.4571403554855,
+      "context_efficiency_pct": null,
+      "optimization_latency_ms": 2899.127721786499,
+      "included_expected_files": 1,
+      "total_expected_files": 2,
+      "file_coverage_pct": 50.0
+    }
+  ]
+}
