@@ -1,3 +1,16 @@
 {
-  "hooks": {}
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/rford/caelum/context-lattice/.venv/bin/context-lattice hook --stdin --budget 8000 --sources file",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
 }
