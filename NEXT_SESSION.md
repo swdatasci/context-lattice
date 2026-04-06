@@ -1,25 +1,104 @@
 # Next Session - Context Lattice
 
-**Last Updated**: 2026-04-05
-**Last Commit**: `fec7ece` - Phase 3 fine-tuned ML models with HF Hub integration
+**Last Updated**: 2026-04-05 (Evening)
+**Last Commit**: `831533d` - Phase 3 baseline infrastructure
+
+---
+
+## 🚨 CRITICAL FINDINGS (2026-04-05)
+
+### Hook Status: DISABLED (Intentionally)
+
+**Why disabled**: FileSource.fetch() hangs indefinitely (2-30s), causing:
+- Hook timeouts (configured 30s, often exceeded)
+- Empty/minimal context injection
+- False positive ("queries work = hook works")
+
+**Reality**: Hook was failing silently all along. Queries worked BECAUSE no context was injected.
+
+**Safety protocol**: Hook must remain DISABLED until FileSource is fixed and validated.
+
+### FileSource Bug
+
+**Root cause**:
+1. Loads 103-weight model on EVERY FileSource() instantiation (2-3s)
+2. Embeds EVERY file during collection (100-200ms each × 20 files = 2-4s)
+3. No timeouts on file I/O
+
+**Total latency**: 6+ seconds (target: <500ms)
+
+**Fix required**: See `CRITICAL_BUG_REPORT.md`
 
 ---
 
 ## Current Status
 
-**Phase 3: Hooks & Polish** - 75% Complete
+**Phase 3: Hooks & Polish** - 50% Complete (Revised)
 
 | Task | Status |
 |------|--------|
-| Pre-query hook for Claude Code | ✅ Done |
+| Pre-query hook for Claude Code | ⚠️ BLOCKED - FileSource hangs |
 | Fine-tuned ML models (bonus) | ✅ Done - 7 models on HF Hub |
+| Performance benchmarks | ✅ Done - Baseline established |
+| Fix FileSource blocking issue | ❌ URGENT - Must fix first |
 | Cost-aware escalation | ❌ Remaining |
-| Performance benchmarks | ❌ Remaining |
 | Documentation polish | ❌ Remaining |
 
 ---
 
 ## Remaining Phase 3 Tasks
+
+### 0. Fix FileSource Blocking Issue (URGENT - Do First!)
+
+**Problem**: FileSource hangs for 6+ seconds, making hooks unusable.
+
+**Fix strategy** (from CRITICAL_BUG_REPORT.md):
+
+1. **Remove embeddings from FileSource** (lazy evaluation)
+   ```python
+   # Return nodes WITHOUT embeddings
+   return ContextNode(..., embedding=None)
+   ```
+
+2. **Move embedding to VectorRanker** (only embed what needs ranking)
+
+3. **Cache model at class level** (load once, reuse)
+   ```python
+   class FileSource:
+       _model_cache = None  # Shared across instances
+   ```
+
+**Expected improvement**: 6s → <100ms (60x faster)
+
+**Testing protocol**:
+```bash
+# 1. Test FileSource speed
+time python -c "from context_lattice.sources import FileSource; ..."
+# Expected: <500ms
+
+# 2. Test hook with CLI (not installed as hook yet!)
+echo '{"query": "test", "cwd": "."}' | context-lattice hook --stdin
+# Expected: <1s, outputs context
+
+# 3. Validate context quality (human review)
+# Does it include expected files?
+# Is token allocation reasonable?
+
+# 4. Re-run baseline
+python benchmarks/run_benchmarks.py --compare
+# Expected: All queries complete, reasonable metrics
+
+# 5. ONLY AFTER VALIDATION: Re-enable hook in .claude/settings.json
+```
+
+**Files to modify**:
+- `src/context_lattice/sources/file_source.py` - Remove embedding, cache model
+- `src/context_lattice/retrieval/vector_ranker.py` - Lazy embed nodes
+- `.claude/settings.json` - Re-enable ONLY after validation
+
+**CRITICAL**: DO NOT re-enable hook until FileSource is fast AND produces good context!
+
+---
 
 ### 1. Cost-Aware Escalation
 
